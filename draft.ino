@@ -15,12 +15,10 @@ Adafruit_SCD30 scd30;
 int counter = 0;
 RtcDateTime now;
 String filename;
+// File myFile;
 
 int p = 0;
-void pageCounter();     // Loop-page-1
-void pageLoop();
-void (*pages[])() = { pageLoop } ;
-int delayTime = 10;                      // seconds
+int delayTime = 5;                      // seconds
 
 void setup() {  
   u8g.setFont(u8g_font_unifont);
@@ -34,18 +32,115 @@ void setup() {
   check_SCD30_detect();
   check_SCD30_set_interval();
   check_SD_access();
-  check_open_file();
+  // check_open_file();
+
+  Serial.println("#Time\tTemperature (C)\tHumidity (%)\t CO2(ppm)");
+  
+  File myFile = SD.open(filename, FILE_WRITE);
+
+  if (! myFile) {
+    Serial.println("Not writing. Cannot find " + filename);
+  }
+  
+  myFile.println("#Time\tTemperature (C)\tHumidity (%)\t CO2(ppm)");
+  myFile.close();
 } 
 
 void loop() {
-  u8g.firstPage();
-  
-  do {  
-    pageLoop();
-  } while( u8g.nextPage() );
-  delay(delayTime * 1000);
-  Serial.println(counter);
-  counter++;
+  if (scd30.dataReady()){
+    // time
+    now = Rtc.GetDateTime();
+    String f_time = get_time(now);
+    
+    if (!scd30.read()){ Serial.println("Error reading sensor data"); return; }
+    
+    // SCD30 data
+    float co2 = scd30.CO2;
+    float temperature = scd30.temperature;
+    float humidity = scd30.relative_humidity;
+    
+    u8g.firstPage();
+    do {  
+      pageLoop(f_time, co2, temperature, humidity);
+    } while( u8g.nextPage() );
+    
+    Serial.print(f_time); Serial.print("\t");
+    Serial.print(co2, 3); Serial.print("\t");
+    Serial.print(temperature); Serial.print("\t");
+    Serial.print(humidity); Serial.print("\t");
+    Serial.println();
+
+    File myFile = SD.open(filename, FILE_WRITE);
+    
+    if (! myFile) {
+      Serial.println("Not writing. Cannot find " + filename);
+    }
+    myFile.print(f_time); myFile.print("\t");
+    myFile.print(co2, 3); myFile.print("\t");
+    myFile.print(temperature); myFile.print("\t");
+    myFile.print(humidity); myFile.print("\t");
+    myFile.println();
+
+    myFile.close();
+    
+    delay(delayTime * 1000);
+  }
+}
+
+int pageLoop(String time, float co2, float temperature, float humidity) {
+  u8g.setPrintPos(0, 10); u8g.print(time);
+
+  u8g.setPrintPos(0, 25); u8g.print(co2);
+  u8g.setPrintPos(72, 25); u8g.print("ppm CO2");
+
+  u8g.setPrintPos(0, 40); u8g.print(temperature);
+  u8g.drawCircle(72, 32, 2);
+  u8g.setPrintPos(78, 40); u8g.print("C");
+
+  u8g.setPrintPos(0, 55); u8g.print(humidity);
+  u8g.setPrintPos(72, 55); u8g.print("\% hum.");
+}
+
+void check_SCD30_detect() {
+  Serial.print("SCD30: ");
+  String message = "found!";
+  if (!scd30.begin()) {
+    message = "not found";
+  }
+  Serial.println(message);
+  return 0;
+}
+
+void check_SCD30_set_interval() {
+  Serial.print("SCD30: setting measurement interval ");
+  String message = "pass";
+  if (!scd30.setMeasurementInterval(delayTime)) {
+    message = "fail";
+  }
+  Serial.println(message);
+  return 0;
+}
+
+void check_SD_access() {
+  Serial.print("SD card: ");
+  String message = "found!";
+  if (!SD.begin(pinCS)) {
+    message = "not found";
+  }
+  Serial.println(message);
+}
+
+void check_open_file() {
+  Serial.print("SD card: ");
+  Serial.print(filename);
+  Serial.print(" file access ");
+  File myFile = SD.open(filename, FILE_WRITE);
+  // myFile = SD.open(filename, FILE_WRITE);
+  String message = "successful";
+  if (! myFile) {
+    message = "failed";
+  }
+  Serial.println(message);
 }
 
 String get_time(RtcDateTime rtcdatetime) {
@@ -72,91 +167,3 @@ String get_date(RtcDateTime rtcdatetime) {
   date = date + uint32_t(rtcdatetime.Year()) * 10000 ;
   return String(date);  
 }
-
-void pageLoop() {
-  now = Rtc.GetDateTime();
-  String f_time = get_time(now);
-  // u8g.drawStr( 0, 10, f_time.c_str());
-
-  u8g.setPrintPos(0, 10);
-  u8g.print(f_time);
-
-  if (!scd30.read()){ Serial.println("Error reading sensor data"); return; }
-
-  scd30.getTemperatureSensor();
-  scd30.getHumiditySensor();
-  
-  float temperature = scd30.temperature;
-  float humidity = scd30.relative_humidity;
-  float co2 = scd30.CO2;
-
-  // CO2
-  float f_co2;
-  if (! isnan(co2)) {
-    f_co2 = co2;
-    Serial.println(f_co2);
-  }
-  
-  u8g.setPrintPos(0, 25);
-  u8g.print(String(f_co2) + " ppm CO2");
-  
-  // temp
-  float f_temperature;
-  if (! isnan(temperature)) {
-    f_temperature = temperature;
-    Serial.println(f_temperature);
-  }
-
-  u8g.setPrintPos(0, 40);
-  u8g.print(String(f_temperature) + " oC");
-
-  // humidity
-  
-  return 0;
-}
-
-void pageCounter() {
-  String counter1 = String(counter);
-  u8g.drawStr( 0, 15, counter1.c_str());
-  counter++;
-  // delay(delayTime * 1000);
-  return 0; 
-}
-
-void check_SCD30_detect() {
-  String message = "SCD30 found!";
-  if (!scd30.begin()) {
-    message = "Fail to find SCD30";
-  }
-  Serial.println(message);
-  return 0;
-}
-
-void check_SCD30_set_interval() {
-  String message = "Setting measurement interval";
-  if (!scd30.setMeasurementInterval(delayTime)) {
-    message = "Fail setting measurement interval";
-  }
-  Serial.println(message);
-  return 0;
-}
-
-void check_SD_access() {
-  String message = "SD card accessible";
-  if (!SD.begin(pinCS)) {
-    message = "SD card failed init";
-  }
-  Serial.println(message);
-}
-
-void check_open_file() {
-  File myFile = SD.open(filename, FILE_WRITE);
-  String message = " file access successful";
-  if (! myFile) {
-    message = " file access failed";
-  }
-  Serial.print(filename);
-  Serial.println(message);
-
-}
-
