@@ -59,32 +59,44 @@ void loop() {
     float temperature = scd30.temperature;
     float humidity = scd30.relative_humidity;
     
-    u8g.firstPage();
-    do {  
-      pageLoop(f_time, co2, temperature, humidity);
-    } while( u8g.nextPage() );
     
-    Serial.print(f_time); Serial.print("\t");
-    Serial.print(co2, 3); Serial.print("\t");
-    Serial.print(temperature); Serial.print("\t");
-    Serial.print(humidity); Serial.print("\t");
-    Serial.println();
+    // Serial.print(f_time); Serial.print("\t");
+    // Serial.print(co2, 3); Serial.print("\t");
+    // Serial.print(temperature); Serial.print("\t");
+    // Serial.print(humidity); Serial.print("\t");
+    // Serial.println();
 
     File myFile = SD.open(filename, FILE_WRITE);
     
     if (! myFile) {
       Serial.println("Not writing. Cannot find " + filename);
-    }
-    myFile.print(f_time); myFile.print("\t");
-    myFile.print(co2, 3); myFile.print("\t");
-    myFile.print(temperature); myFile.print("\t");
-    myFile.print(humidity); myFile.print("\t");
-    myFile.println();
+      u8g.firstPage();
+      do {  
+        errorPage();
+      } while( u8g.nextPage() );
+    } else {
+      u8g.firstPage();
+      do {  
+        pageLoop(f_time, co2, temperature, humidity);
+      } while( u8g.nextPage() );
+      myFile.print(f_time); myFile.print("\t");
+      myFile.print(co2, 3); myFile.print("\t");
+      myFile.print(temperature); myFile.print("\t");
+      myFile.print(humidity); myFile.print("\t");
+      myFile.println();
 
-    myFile.close();
+      myFile.close();
+        
+    }
+    
     
     delay(delayTime * 1000);
   }
+}
+
+void errorPage() {
+  u8g.setPrintPos(0, 10); u8g.print("Cannot write to file");
+  u8g.setPrintPos(0, 25); u8g.print(filename);
 }
 
 int pageLoop(String time, float co2, float temperature, float humidity) {
