@@ -34,7 +34,7 @@ void setup() {
   check_SD_access();
   // check_open_file();
 
-  Serial.println("#Time\tTemperature (C)\tHumidity (%)\t CO2(ppm)");
+  Serial.println("#Time\tCO2(ppm)\t Temperature (C)\tHumidity (%)");
   
   File myFile = SD.open(filename, FILE_WRITE);
 
